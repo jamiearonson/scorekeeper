@@ -5,6 +5,7 @@ import { GAMES, GAME_ICONS } from "@/lib/games";
 import { completedRoundCount } from "@/lib/scoring";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -26,6 +27,8 @@ export default function Home() {
           Fast score tracking for the games you play.
         </p>
       </header>
+
+      <InstallPrompt />
 
       {game && def && Icon && (
         <Card
