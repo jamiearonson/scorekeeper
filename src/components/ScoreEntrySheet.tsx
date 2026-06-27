@@ -27,6 +27,9 @@ export function ScoreEntrySheet({ game, roundIndex, onClose }: ScoreEntrySheetPr
   const { setScore } = useGame();
   const def = GAMES[game.gameType];
   const steps = def.scoreSteps ?? [1];
+  // Games like Farkle treat an untouched player as 0 (a bust), so the round closes out
+  // by saving and you only bump the players who actually scored.
+  const fallback = def.defaultScore ?? null;
   const open = roundIndex !== null;
 
   const [draft, setDraft] = useState<Record<string, number | null>>({});
@@ -35,7 +38,12 @@ export function ScoreEntrySheet({ game, roundIndex, onClose }: ScoreEntrySheetPr
   useEffect(() => {
     if (roundIndex === null) return;
     const round = game.rounds[roundIndex];
-    setDraft(round ? { ...round.scores } : {});
+    const seeded: Record<string, number | null> = {};
+    for (const p of game.players) {
+      const existing = round?.scores[p.id];
+      seeded[p.id] = existing === null || existing === undefined ? fallback : existing;
+    }
+    setDraft(seeded);
     // Only re-seed when the targeted round changes, not on every score edit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundIndex]);
@@ -43,7 +51,7 @@ export function ScoreEntrySheet({ game, roundIndex, onClose }: ScoreEntrySheetPr
   function handleSave() {
     if (roundIndex === null) return;
     for (const p of game.players) {
-      const v = draft[p.id];
+      const v = draft[p.id] ?? fallback;
       if (v === null || v === undefined) continue;
       const err = def.validateScore(v, game.config);
       if (err) {
@@ -52,7 +60,7 @@ export function ScoreEntrySheet({ game, roundIndex, onClose }: ScoreEntrySheetPr
       }
     }
     for (const p of game.players) {
-      setScore(roundIndex, p.id, draft[p.id] ?? null);
+      setScore(roundIndex, p.id, draft[p.id] ?? fallback);
     }
     onClose();
   }

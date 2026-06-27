@@ -78,6 +78,13 @@ export interface GameDefinition {
    * Defaults to [1] when omitted.
    */
   scoreSteps?: number[];
+  /**
+   * Default per-player value when entering a fresh round. Set to 0 for games where a
+   * blank turn means zero (e.g. a Farkle bust) so the round counts as complete and you
+   * only adjust the players who actually scored. Omit (undefined) to require explicit
+   * entry for every player before a round closes out (e.g. golf).
+   */
+  defaultScore?: number;
   /** Total rounds for a fixed-length game, or `null` for open-ended (play until a condition). */
   totalRounds: (config: Record<string, number>) => number | null;
   /** Returns an error string if the entered score is invalid, else null. */

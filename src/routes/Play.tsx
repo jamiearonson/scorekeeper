@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { useGame } from "@/lib/store";
 import { useSync } from "@/lib/sync";
+import { useWakeLock } from "@/lib/useWakeLock";
 import { GAMES } from "@/lib/games";
 import { completedRoundCount, winners } from "@/lib/scoring";
 import { Leaderboard } from "@/components/Leaderboard";
@@ -43,6 +44,9 @@ export default function Play() {
   const [scoringOpen, setScoringOpen] = useState(false);
 
   const isGuest = sync.role === "guest";
+
+  // Keep the screen awake while scorekeeping (runs for both host/solo and guest views).
+  useWakeLock(true);
 
   // Guests render the host's broadcast (handled in GuestPlay); hosts/solo bounce
   // home if their local game is gone.

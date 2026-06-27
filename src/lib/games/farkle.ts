@@ -35,6 +35,7 @@ export const farkle: GameDefinition = {
     },
   ],
   scoreSteps: [50, 1000], // fine = 50, coarse = 1000
+  defaultScore: 0, // a busted/farkled turn is 0 — players start at 0 each round
   totalRounds: () => null, // open-ended
   validateScore: (value) => {
     if (!Number.isFinite(value)) return "Enter a number";
