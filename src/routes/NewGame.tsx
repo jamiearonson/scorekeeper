@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronUp, GripVertical, Plus, X } from "lucide-react";
+import { ArrowLeft, ChevronUp, GripVertical, Plus, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { useGame } from "@/lib/store";
 import { GAME_LIST, GAMES, GAME_ICONS } from "@/lib/games";
@@ -13,7 +13,8 @@ import type React from "react";
 
 export default function NewGame() {
   const navigate = useNavigate();
-  const { startGame, lastPlayers, lastGameType } = useGame();
+  const { startGame, lastPlayers, lastGameType, favorites, addFavorite, removeFavorite } =
+    useGame();
 
   const [gameType, setGameType] = useState<string>(
     () => (lastGameType && GAMES[lastGameType] ? lastGameType : GAME_LIST[0].id),
@@ -55,6 +56,36 @@ export default function NewGame() {
       [next[i - 1], next[i]] = [next[i], next[i - 1]];
       return next;
     });
+  }
+
+  function hasPlayer(name: string) {
+    const n = name.trim().toLowerCase();
+    return players.some((p) => p.trim().toLowerCase() === n);
+  }
+
+  // Tap a saved favorite to drop it into the lineup: fill the first blank row, else append.
+  function addFromFavorite(name: string) {
+    if (hasPlayer(name)) return;
+    setPlayers((p) => {
+      const blank = p.findIndex((n) => n.trim() === "");
+      if (blank === -1) return [...p, name];
+      return p.map((n, idx) => (idx === blank ? name : n));
+    });
+  }
+
+  function toggleFavorite(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (favorites.some((f) => f.toLowerCase() === trimmed.toLowerCase())) {
+      removeFavorite(trimmed);
+    } else {
+      addFavorite(trimmed);
+    }
+  }
+
+  function isFavorited(name: string) {
+    const n = name.trim().toLowerCase();
+    return n !== "" && favorites.some((f) => f.toLowerCase() === n);
   }
 
   // Always startable — blank rows fall back to "Player N" so a quick game needs no typing.
@@ -169,6 +200,25 @@ export default function NewGame() {
                   type="button"
                   variant="ghost"
                   size="icon"
+                  className="shrink-0"
+                  onClick={() => toggleFavorite(name)}
+                  disabled={name.trim() === ""}
+                  aria-label={isFavorited(name) ? "Remove from favorites" : "Save as favorite"}
+                  aria-pressed={isFavorited(name)}
+                >
+                  <Star
+                    className={cn(
+                      "size-5",
+                      isFavorited(name)
+                        ? "fill-yellow-400 text-yellow-400"
+                        : "text-muted-foreground",
+                    )}
+                  />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
                   className="text-muted-foreground shrink-0"
                   onClick={() => removePlayer(i)}
                   disabled={players.length <= 1}
@@ -183,6 +233,34 @@ export default function NewGame() {
             <Plus className="size-4" />
             Add player
           </Button>
+
+          {favorites.length > 0 && (
+            <div className="flex flex-col gap-2 pt-1">
+              <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                Favorites
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {favorites.map((name) => {
+                  const added = hasPlayer(name);
+                  return (
+                    <Chip
+                      key={name}
+                      active={added}
+                      onClick={() => addFromFavorite(name)}
+                    >
+                      <Star
+                        className={cn(
+                          "size-3.5",
+                          added ? "fill-current" : "fill-yellow-400 text-yellow-400",
+                        )}
+                      />
+                      {name}
+                    </Chip>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </section>
       </div>
 
@@ -301,7 +379,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "min-w-14 rounded-full border px-4 py-2 text-sm font-medium transition active:scale-95",
+        "inline-flex min-w-14 items-center justify-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition active:scale-95",
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border bg-card text-foreground",

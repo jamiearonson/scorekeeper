@@ -13,6 +13,7 @@ import { GAMES } from "./games";
 const ACTIVE_KEY = "scorekeeper:v1:active";
 const LAST_PLAYERS_KEY = "scorekeeper:v1:lastPlayers";
 const LAST_GAME_KEY = "scorekeeper:v1:lastGameType";
+const FAVORITES_KEY = "scorekeeper:v1:favorites";
 
 function uid(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -53,6 +54,7 @@ interface GameStore {
   game: Game | null;
   lastPlayers: string[];
   lastGameType: string | null;
+  favorites: string[];
   startGame: (input: StartGameInput) => Game;
   setScore: (roundIndex: number, playerId: string, value: number | null) => void;
   addRound: () => void;
@@ -60,6 +62,8 @@ interface GameStore {
   completeGame: () => void;
   reopenGame: () => void;
   clearGame: () => void;
+  addFavorite: (name: string) => void;
+  removeFavorite: (name: string) => void;
 }
 
 const Ctx = createContext<GameStore | null>(null);
@@ -71,6 +75,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   );
   const [lastGameType, setLastGameType] = useState<string | null>(
     () => load<string>(LAST_GAME_KEY),
+  );
+  const [favorites, setFavorites] = useState<string[]>(
+    () => load<string[]>(FAVORITES_KEY) ?? [],
   );
 
   // Persist the active game on every change (or remove it when cleared).
@@ -146,11 +153,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const clearGame = useCallback(() => setGame(null), []);
 
+  const addFavorite = useCallback((name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setFavorites((favs) => {
+      // Case-insensitive dedupe; keep the existing casing if already present.
+      if (favs.some((f) => f.toLowerCase() === trimmed.toLowerCase())) return favs;
+      const next = [...favs, trimmed];
+      save(FAVORITES_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const removeFavorite = useCallback((name: string) => {
+    setFavorites((favs) => {
+      const next = favs.filter((f) => f.toLowerCase() !== name.trim().toLowerCase());
+      save(FAVORITES_KEY, next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<GameStore>(
     () => ({
       game,
       lastPlayers,
       lastGameType,
+      favorites,
       startGame,
       setScore,
       addRound,
@@ -158,11 +186,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       completeGame,
       reopenGame,
       clearGame,
+      addFavorite,
+      removeFavorite,
     }),
     [
       game,
       lastPlayers,
       lastGameType,
+      favorites,
       startGame,
       setScore,
       addRound,
@@ -170,6 +201,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       completeGame,
       reopenGame,
       clearGame,
+      addFavorite,
+      removeFavorite,
     ],
   );
 
