@@ -10,18 +10,25 @@ Built generic so new games are added by dropping in a single file — ships toda
 - 🔁 "Play again — same players" to restart instantly
 - 📡 **Live score sharing** — others scan a QR / enter a code to watch the score update in real time
 
-## Live sharing (serverless P2P)
+## Live sharing (Supabase Realtime)
 
 The scorekeeper taps **Share** on the Play screen to get a game code + QR. Others scan it
 (or enter the code on Home → **Join a game**) to watch the scorecard update live as scores are
-entered. It uses **WebRTC peer-to-peer** via [Trystero](https://github.com/dmotz/trystero) —
-peer discovery rides public Nostr relays, so there is **no server or database of our own** and
-it still deploys to plain static hosting. The host's device is the source of truth; guests get a
-**read-only** live view. See [`src/lib/sync.tsx`](src/lib/sync.tsx).
+entered. The app still deploys as a plain static site to GitHub Pages — the only external piece
+is **[Supabase Realtime](https://supabase.com/realtime)** acting as a message relay:
 
-Notes: works best when players share Wi-Fi/a hotspot (the common in-person case); across
-restrictive/mixed cellular networks a TURN relay (not configured here) may be needed. Letting
-guests enter their own scores is a natural next step (send a score action back to the host).
+- Every device opens **one** WebSocket to a shared channel (`scorekeeper:<code>`) and the host
+  **broadcasts** the whole game on each change; guests subscribe and apply it. Because messages
+  relay through Supabase (not peer-to-peer), it works for any number of watchers on any network.
+- **Presence** tracks the live watcher count. The host is the source of truth; guests get a
+  **read-only** live view. See [`src/lib/sync.tsx`](src/lib/sync.tsx).
+
+Config lives in [`src/lib/supabaseClient.ts`](src/lib/supabaseClient.ts) and uses only the
+**publishable (anon) key**, which is safe to ship in client code. The `sb_secret_…` key must
+never be committed. No database tables are needed for live sync (Broadcast/Presence are
+ephemeral) — but since Supabase includes Postgres, persisting finished games later is just a
+table write, no new service. Guest-side score entry (send a score action back to the host) is a
+natural next step.
 
 ## Stack
 

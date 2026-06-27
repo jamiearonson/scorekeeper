@@ -8,15 +8,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { joinRoom, type Room } from "trystero";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { supabase } from "./supabaseClient";
 import type { Game } from "./types";
 import { useGame } from "./store";
 
-// Real-time score sync over WebRTC. Trystero's default Nostr transport handles peer
-// discovery via public relays — no server or database of our own. The scorekeeper hosts
-// (their device is the source of truth); guests join by code/QR and get a read-only live view.
+// Real-time score sync via Supabase Realtime. Every device opens one connection to a
+// shared channel and messages are relayed through Supabase — no peer-to-peer mesh, so it
+// works for any number of watchers on any network. The scorekeeper hosts (source of
+// truth) and broadcasts the whole game; guests subscribe and get a read-only live view.
 
-const APP_ID = "scorekeeper-p2p-v1";
 const SESSION_KEY = "scorekeeper:v1:syncSession";
 // Crockford base32 without ambiguous chars (no I/L/O/U) — easy to read aloud / type.
 const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -29,7 +30,7 @@ interface SyncStore {
   role: SyncRole;
   code: string | null;
   status: SyncStatus;
-  /** Other peers connected to the room (watchers for a host; host+others for a guest). */
+  /** Watchers connected to a hosted game (excludes self). */
   peerCount: number;
   /** The game a guest is viewing (null until the host's first state arrives). */
   remoteGame: Game | null;
@@ -46,6 +47,10 @@ function makeCode(): string {
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
 }
 
+function channelName(code: string): string {
+  return `scorekeeper:${code}`;
+}
+
 interface Session {
   role: SyncRole;
   code: string;
@@ -60,65 +65,94 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [peerCount, setPeerCount] = useState(0);
   const [remoteGame, setRemoteGame] = useState<Game | null>(null);
 
-  // Imperative room handles live outside React's render cycle.
-  const roomRef = useRef<Room | null>(null);
-  const sendStateRef = useRef<((g: Game, peerId?: string) => void) | null>(null);
-  const peersRef = useRef<Set<string>>(new Set());
-  // Refs mirror state so room callbacks always read current values.
+  // Imperative channel handle lives outside React's render cycle.
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const subscribedRef = useRef(false);
+  const sendStateRef = useRef<((g: Game) => void) | null>(null);
+  // Refs mirror state so channel callbacks always read current values.
   const roleRef = useRef<SyncRole>("off");
+  const statusRef = useRef<SyncStatus>("idle");
+  statusRef.current = status;
   const gameRef = useRef<Game | null>(game);
   gameRef.current = game;
+  // Stable id for this device's presence entry.
+  const selfIdRef = useRef<string>("");
+  if (!selfIdRef.current) {
+    selfIdRef.current =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `self-${Math.random().toString(36).slice(2)}`;
+  }
 
   const teardown = useCallback(() => {
-    roomRef.current?.leave();
-    roomRef.current = null;
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
+    channelRef.current = null;
+    subscribedRef.current = false;
     sendStateRef.current = null;
-    peersRef.current = new Set();
     setPeerCount(0);
   }, []);
 
-  const startRoom = useCallback(
+  const startChannel = useCallback(
     (roomCode: string, asRole: SyncRole) => {
       teardown();
       roleRef.current = asRole;
 
-      const room = joinRoom({ appId: APP_ID, password: roomCode }, roomCode);
-      roomRef.current = room;
+      const channel = supabase.channel(channelName(roomCode), {
+        config: {
+          broadcast: { self: false },
+          presence: { key: selfIdRef.current },
+        },
+      });
+      channelRef.current = channel;
 
-      // The game is sent as a JSON string (a valid DataPayload); a whole-state
-      // broadcast keeps sync trivial and is tiny on the wire.
-      const action = room.makeAction<string>("state");
-      const sendState = (g: Game, target?: string) =>
-        action.send(JSON.stringify(g), target ? { target } : undefined);
+      const sendState = (g: Game) => {
+        if (!subscribedRef.current) return;
+        channel.send({ type: "broadcast", event: "state", payload: g });
+      };
       sendStateRef.current = sendState;
 
-      action.onMessage = (data) => {
+      // Guests apply the host's broadcast.
+      channel.on("broadcast", { event: "state" }, ({ payload }) => {
         if (roleRef.current !== "guest") return;
-        try {
-          setRemoteGame(JSON.parse(data) as Game);
-          setStatus("connected");
-        } catch {
-          /* ignore malformed payload */
-        }
-      };
+        setRemoteGame(payload as Game);
+        setStatus("connected");
+      });
 
-      room.onPeerJoin = (peerId) => {
-        peersRef.current.add(peerId);
-        setPeerCount(peersRef.current.size);
-        // Seed a freshly-joined watcher with the current game immediately.
-        if (roleRef.current === "host" && gameRef.current) {
-          sendState(gameRef.current, peerId);
-        }
-      };
+      // A guest announces itself on join; the host replies with the current game so
+      // late joiners are seeded immediately (not only on the next score change).
+      channel.on("broadcast", { event: "hello" }, () => {
+        if (roleRef.current === "host" && gameRef.current) sendState(gameRef.current);
+      });
 
-      room.onPeerLeave = (peerId) => {
-        peersRef.current.delete(peerId);
-        setPeerCount(peersRef.current.size);
-        // A guest whose only peer (the host) left has lost the live feed.
-        if (roleRef.current === "guest" && peersRef.current.size === 0) {
-          setStatus("disconnected");
+      // Presence → watcher count, and lets a guest notice the host leaving.
+      channel.on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        const entries = Object.values(state).flat() as Array<{ role?: string }>;
+        setPeerCount(Math.max(0, entries.length - 1));
+        if (roleRef.current === "guest" && statusRef.current === "connected") {
+          const hostPresent = entries.some((e) => e.role === "host");
+          if (!hostPresent) setStatus("disconnected");
         }
-      };
+      });
+
+      channel.subscribe((channelStatus) => {
+        if (channelStatus === "SUBSCRIBED") {
+          subscribedRef.current = true;
+          channel.track({ role: asRole, id: selfIdRef.current });
+          if (asRole === "host") {
+            setStatus("connected");
+            if (gameRef.current) sendState(gameRef.current);
+          } else {
+            // Ask the host to send the current game.
+            channel.send({ type: "broadcast", event: "hello", payload: {} });
+          }
+        } else if (
+          channelStatus === "CHANNEL_ERROR" ||
+          channelStatus === "TIMED_OUT"
+        ) {
+          if (roleRef.current === "guest") setStatus("disconnected");
+        }
+      });
     },
     [teardown],
   );
@@ -138,12 +172,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     roleRef.current = "host";
     setCode(newCode);
     setRemoteGame(null);
-    setStatus("connected"); // "sharing is live"; peerCount shows watchers
-    startRoom(newCode, "host");
-    if (gameRef.current) sendStateRef.current?.(gameRef.current);
+    setStatus("connecting");
+    startChannel(newCode, "host");
     persist({ role: "host", code: newCode });
     return newCode;
-  }, [startRoom]);
+  }, [startChannel]);
 
   const join = useCallback(
     (joinCode: string) => {
@@ -154,10 +187,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setCode(norm);
       setRemoteGame(null);
       setStatus("connecting");
-      startRoom(norm, "guest");
+      startChannel(norm, "guest");
       persist({ role: "guest", code: norm });
     },
-    [startRoom],
+    [startChannel],
   );
 
   const stop = useCallback(() => {
@@ -172,9 +205,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   // Resume an in-progress session across a reload (guest rejoins; host resumes sharing).
   useEffect(() => {
-    // If a room is already active (e.g. the Join route's effect ran first and started
-    // it during this same mount), don't start a second one.
-    if (roomRef.current) return;
+    // If a channel is already active (e.g. the Join route's effect ran first during this
+    // same mount), don't start a second one.
+    if (channelRef.current) return;
     let raw: string | null = null;
     try {
       raw = sessionStorage.getItem(SESSION_KEY);
@@ -198,7 +231,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (role === "host" && game) sendStateRef.current?.(game);
   }, [game, role]);
 
-  // Leave the room when the provider unmounts.
+  // Leave the channel when the provider unmounts.
   useEffect(() => () => teardown(), [teardown]);
 
   const value = useMemo<SyncStore>(
