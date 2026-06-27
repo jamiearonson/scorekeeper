@@ -8,6 +8,20 @@ Built generic so new games are added by dropping in a single file — ships toda
 - 💾 No backend — the active game is saved to `localStorage` and survives refreshes
 - ⚡ Installable PWA, works offline after first load
 - 🔁 "Play again — same players" to restart instantly
+- 📡 **Live score sharing** — others scan a QR / enter a code to watch the score update in real time
+
+## Live sharing (serverless P2P)
+
+The scorekeeper taps **Share** on the Play screen to get a game code + QR. Others scan it
+(or enter the code on Home → **Join a game**) to watch the scorecard update live as scores are
+entered. It uses **WebRTC peer-to-peer** via [Trystero](https://github.com/dmotz/trystero) —
+peer discovery rides public Nostr relays, so there is **no server or database of our own** and
+it still deploys to plain static hosting. The host's device is the source of truth; guests get a
+**read-only** live view. See [`src/lib/sync.tsx`](src/lib/sync.tsx).
+
+Notes: works best when players share Wi-Fi/a hotspot (the common in-person case); across
+restrictive/mixed cellular networks a TURN relay (not configured here) may be needed. Letting
+guests enter their own scores is a natural next step (send a score action back to the host).
 
 ## Stack
 

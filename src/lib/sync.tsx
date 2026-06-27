@@ -172,6 +172,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   // Resume an in-progress session across a reload (guest rejoins; host resumes sharing).
   useEffect(() => {
+    // If a room is already active (e.g. the Join route's effect ran first and started
+    // it during this same mount), don't start a second one.
+    if (roomRef.current) return;
     let raw: string | null = null;
     try {
       raw = sessionStorage.getItem(SESSION_KEY);
