@@ -1,15 +1,32 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Play as PlayIcon, Trophy } from "lucide-react";
+import { LogIn, Plus, Play as PlayIcon, Trophy } from "lucide-react";
 import { useGame } from "@/lib/store";
 import { GAMES, GAME_ICONS } from "@/lib/games";
 import { completedRoundCount } from "@/lib/scoring";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { InstallPrompt } from "@/components/InstallPrompt";
 
 export default function Home() {
   const navigate = useNavigate();
   const { game } = useGame();
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+
+  function submitJoin() {
+    const code = codeInput.trim().toUpperCase();
+    if (code) navigate(`/join/${code}`);
+  }
 
   const def = game ? GAMES[game.gameType] : null;
   const Icon = game ? GAME_ICONS[game.gameType] : null;
@@ -69,12 +86,49 @@ export default function Home() {
           <Plus className="size-5" />
           New Game
         </Button>
+        <Button
+          variant="outline"
+          size="lg"
+          className="h-12"
+          onClick={() => setJoinOpen(true)}
+        >
+          <LogIn className="size-4" />
+          Join a game
+        </Button>
         {game && (
           <p className="text-muted-foreground text-center text-xs">
             Starting a new game keeps this one until you finish setup.
           </p>
         )}
       </div>
+
+      <Dialog open={joinOpen} onOpenChange={setJoinOpen}>
+        <DialogContent className="max-w-[20rem]">
+          <DialogHeader>
+            <DialogTitle>Join a game</DialogTitle>
+            <DialogDescription>
+              Enter the scorekeeper's code, or just scan their QR code with your
+              phone's camera.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={codeInput}
+            onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === "Enter" && submitJoin()}
+            placeholder="ABC123"
+            autoFocus
+            autoCapitalize="characters"
+            autoComplete="off"
+            maxLength={6}
+            className="h-14 text-center font-mono text-2xl tracking-[0.3em]"
+          />
+          <DialogFooter>
+            <Button onClick={submitJoin} disabled={!codeInput.trim()} className="h-11">
+              Join game
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

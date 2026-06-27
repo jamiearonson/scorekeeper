@@ -46,6 +46,23 @@ export interface Standing {
   isLeader: boolean;
 }
 
+/** One row in a game's scoring cheat-sheet (e.g. "Three 1s" → "1,000"). */
+export interface ScoringRule {
+  /** The dice combination or condition. */
+  combo: string;
+  /** Point value, pre-formatted for display. */
+  points: string;
+}
+
+/** A titled group of scoring rules, shown together in the reference sheet. */
+export interface ScoringSection {
+  /** Optional heading for the group (omit for a single ungrouped list). */
+  title?: string;
+  rules: ScoringRule[];
+  /** Optional note shown under the group. */
+  note?: string;
+}
+
 export interface GameDefinition {
   id: string;
   name: string;
@@ -69,4 +86,6 @@ export interface GameDefinition {
   isComplete: (game: Game) => boolean;
   /** Optional human-readable summary of the win condition, shown during setup. */
   describeGoal?: (config: Record<string, number>) => string;
+  /** Optional scoring cheat-sheet, surfaced as an in-game reference. */
+  scoringReference?: ScoringSection[];
 }

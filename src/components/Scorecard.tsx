@@ -7,10 +7,12 @@ interface ScorecardProps {
   game: Game;
   /** Tap a cell to edit that round. */
   onEditRound: (roundIndex: number) => void;
+  /** Disable editing (e.g. a guest watching a synced game). */
+  readOnly?: boolean;
 }
 
 // Grid: rows = rounds, columns = players, sticky round column + totals row.
-export function Scorecard({ game, onEditRound }: ScorecardProps) {
+export function Scorecard({ game, onEditRound, readOnly = false }: ScorecardProps) {
   const def = GAMES[game.gameType];
   const players = game.players;
 
@@ -40,8 +42,11 @@ export function Scorecard({ game, onEditRound }: ScorecardProps) {
             return (
               <tr
                 key={i}
-                className="cursor-pointer border-t transition active:bg-accent"
-                onClick={() => onEditRound(i)}
+                className={cn(
+                  "border-t transition",
+                  !readOnly && "cursor-pointer active:bg-accent",
+                )}
+                onClick={readOnly ? undefined : () => onEditRound(i)}
               >
                 <td className="bg-background sticky left-0 z-10 px-3 py-2 font-medium">
                   {i + 1}

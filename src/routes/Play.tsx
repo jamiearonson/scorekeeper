@@ -2,20 +2,28 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
+  BookOpen,
   Flag,
+  LogOut,
   Pencil,
   Plus,
+  Radio,
   RotateCcw,
+  Share2,
   Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useGame } from "@/lib/store";
+import { useSync } from "@/lib/sync";
 import { GAMES } from "@/lib/games";
 import { completedRoundCount, winners } from "@/lib/scoring";
 import { Leaderboard } from "@/components/Leaderboard";
 import { Scorecard } from "@/components/Scorecard";
 import { ScoreEntrySheet } from "@/components/ScoreEntrySheet";
+import { ShareGameDialog } from "@/components/ShareGameDialog";
+import { ScoringReferenceDialog } from "@/components/ScoringReferenceDialog";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -28,14 +36,21 @@ import {
 export default function Play() {
   const navigate = useNavigate();
   const { game, addRound, completeGame, clearGame, startGame } = useGame();
+  const sync = useSync();
   const [editRound, setEditRound] = useState<number | null>(null);
   const [confirmFinish, setConfirmFinish] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [scoringOpen, setScoringOpen] = useState(false);
 
-  // No active game (e.g. cleared in another tab) — bounce home.
+  const isGuest = sync.role === "guest";
+
+  // Guests render the host's broadcast (handled in GuestPlay); hosts/solo bounce
+  // home if their local game is gone.
   useEffect(() => {
-    if (!game) navigate("/", { replace: true });
-  }, [game, navigate]);
+    if (!isGuest && !game) navigate("/", { replace: true });
+  }, [isGuest, game, navigate]);
 
+  if (isGuest) return <GuestPlay />;
   if (!game) return null;
 
   const def = GAMES[game.gameType];
@@ -98,6 +113,31 @@ export default function Play() {
               : `${done} ${(done === 1 ? def.roundLabel : def.roundLabelPlural).toLowerCase()} played`}
           </p>
         </div>
+        {def.scoringReference && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setScoringOpen(true)}
+            aria-label="Scoring reference"
+          >
+            <BookOpen className="size-5" />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShareOpen(true)}
+          className="px-2"
+        >
+          {sync.role === "host" ? (
+            <span className="flex items-center gap-1.5 text-emerald-500">
+              <Radio className="size-4" />
+              {sync.peerCount}
+            </span>
+          ) : (
+            <Share2 className="size-4" />
+          )}
+        </Button>
         {!complete && (
           <Button
             variant="ghost"
@@ -176,6 +216,14 @@ export default function Play() {
         onClose={() => setEditRound(null)}
       />
 
+      <ShareGameDialog open={shareOpen} onOpenChange={setShareOpen} />
+
+      <ScoringReferenceDialog
+        def={def}
+        open={scoringOpen}
+        onOpenChange={setScoringOpen}
+      />
+
       <Dialog open={confirmFinish} onOpenChange={setConfirmFinish}>
         <DialogContent className="max-w-[20rem]">
           <DialogHeader>
@@ -193,6 +241,105 @@ export default function Play() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// Read-only live view for a guest watching the scorekeeper's game.
+function GuestPlay() {
+  const navigate = useNavigate();
+  const sync = useSync();
+  const game = sync.remoteGame;
+  const [scoringOpen, setScoringOpen] = useState(false);
+
+  function leave() {
+    sync.stop();
+    navigate("/", { replace: true });
+  }
+
+  const def = game ? GAMES[game.gameType] : null;
+  const total = def && game ? def.totalRounds(game.config) : null;
+  const done = game ? completedRoundCount(game) : 0;
+  const complete = !!game?.completedAt;
+  const win = complete && game ? winners(game) : [];
+  const live = sync.status === "connected";
+
+  return (
+    <div className="mx-auto flex w-full max-w-md flex-1 flex-col landscape:max-w-6xl">
+      <header className="bg-background/80 sticky top-0 z-20 flex items-center gap-2 border-b px-3 py-3 backdrop-blur pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <Button variant="ghost" size="icon" onClick={leave}>
+          <ArrowLeft className="size-5" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-semibold leading-tight">
+            {def ? def.name : "Joining…"}
+          </h1>
+          <p className="text-muted-foreground text-xs">
+            {def && game
+              ? total
+                ? `${done} / ${total} ${def.roundLabelPlural.toLowerCase()}`
+                : `${done} ${(done === 1 ? def.roundLabel : def.roundLabelPlural).toLowerCase()} played`
+              : "Connecting to the scorekeeper"}
+          </p>
+        </div>
+        {def?.scoringReference && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setScoringOpen(true)}
+            aria-label="Scoring reference"
+          >
+            <BookOpen className="size-5" />
+          </Button>
+        )}
+        <span
+          className={cn(
+            "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+            live
+              ? "bg-emerald-500/10 text-emerald-500"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          <Radio className="size-3.5" />
+          {live ? "Live" : "Offline"}
+        </span>
+      </header>
+
+      <div className="flex flex-col gap-4 px-4 py-4">
+        <div className="text-muted-foreground rounded-lg bg-secondary/60 px-3 py-2 text-center text-sm">
+          {live
+            ? "You're watching the scorekeeper's game. Scores update automatically."
+            : "Lost connection to the scorekeeper. Showing the last known score."}
+        </div>
+
+        {complete && win.length > 0 && (
+          <WinnerBanner names={win.map((w) => w.player.name)} total={win[0].total} />
+        )}
+
+        {game && def ? (
+          <>
+            <Leaderboard game={game} />
+            <Scorecard game={game} onEditRound={() => {}} readOnly />
+          </>
+        ) : (
+          <p className="text-muted-foreground py-10 text-center text-sm">
+            Waiting for the scorekeeper…
+          </p>
+        )}
+
+        <Button variant="outline" size="lg" className="h-12" onClick={leave}>
+          <LogOut className="size-4" />
+          Leave game
+        </Button>
+      </div>
+
+      {def && (
+        <ScoringReferenceDialog
+          def={def}
+          open={scoringOpen}
+          onOpenChange={setScoringOpen}
+        />
+      )}
     </div>
   );
 }

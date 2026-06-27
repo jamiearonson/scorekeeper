@@ -46,4 +46,41 @@ export const farkle: GameDefinition = {
     game.players.some((p) => totalFor(game, p.id) >= game.config.target),
   describeGoal: (config) =>
     `First to ${config.target.toLocaleString()} points wins.`,
+  // Standard Farkle scoring, for in-game reference. House rules vary — these are
+  // the common defaults.
+  scoringReference: [
+    {
+      title: "Singles",
+      rules: [
+        { combo: "Each 1", points: "100" },
+        { combo: "Each 5", points: "50" },
+      ],
+    },
+    {
+      title: "Three of a kind",
+      rules: [
+        { combo: "Three 1s", points: "1,000" },
+        { combo: "Three 2s", points: "200" },
+        { combo: "Three 3s", points: "300" },
+        { combo: "Three 4s", points: "400" },
+        { combo: "Three 5s", points: "500" },
+        { combo: "Three 6s", points: "600" },
+      ],
+      note: "Each extra die of the same value doubles the three-of-a-kind score (four = ×2, five = ×4, six = ×8).",
+    },
+    {
+      title: "Special combinations",
+      rules: [
+        { combo: "Straight (1-2-3-4-5-6)", points: "1,500" },
+        { combo: "Three pairs", points: "1,500" },
+        { combo: "Four of a kind + a pair", points: "1,500" },
+        { combo: "Two triplets", points: "2,500" },
+        { combo: "Six of a kind", points: "3,000" },
+      ],
+    },
+    {
+      rules: [{ combo: "No scoring dice rolled", points: "Farkle — lose the turn" }],
+      note: "Set aside at least one scoring die each roll to keep going, or bank your points.",
+    },
+  ],
 };
