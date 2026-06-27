@@ -34,7 +34,8 @@ interface SyncStore {
   peerCount: number;
   /** The game a guest is viewing (null until the host's first state arrives). */
   remoteGame: Game | null;
-  host: () => string;
+  /** Start hosting. Pass a custom code (≥3 chars) to use instead of a random one. */
+  host: (customCode?: string) => string;
   join: (code: string) => void;
   stop: () => void;
 }
@@ -46,6 +47,15 @@ function makeCode(): string {
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
 }
+
+/** Codes are uppercase A–Z/0–9, capped at 12 chars — shareable by voice or QR. */
+export function normalizeCode(raw: string): string {
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+}
+
+/** Shortest acceptable custom code. */
+export const MIN_CODE_LENGTH = 3;
+export const MAX_CODE_LENGTH = 12;
 
 function channelName(code: string): string {
   return `scorekeeper:${code}`;
@@ -166,8 +176,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const host = useCallback((): string => {
-    const newCode = makeCode();
+  const host = useCallback((customCode?: string): string => {
+    const custom = customCode ? normalizeCode(customCode) : "";
+    const newCode = custom.length >= MIN_CODE_LENGTH ? custom : makeCode();
     setRole("host");
     roleRef.current = "host";
     setCode(newCode);
@@ -180,7 +191,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const join = useCallback(
     (joinCode: string) => {
-      const norm = joinCode.trim().toUpperCase();
+      const norm = normalizeCode(joinCode);
       if (!norm) return;
       setRole("guest");
       roleRef.current = "guest";
@@ -217,7 +228,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (!raw) return;
     try {
       const s = JSON.parse(raw) as Session;
-      if (s.role === "host") host();
+      // Reuse the saved code so a host reload keeps the same code (custom or random).
+      if (s.role === "host") host(s.code);
       else if (s.role === "guest") join(s.code);
     } catch {
       /* ignore malformed session */

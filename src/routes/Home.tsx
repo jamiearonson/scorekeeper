@@ -4,6 +4,7 @@ import { LogIn, Plus, Play as PlayIcon, Trophy } from "lucide-react";
 import { useGame } from "@/lib/store";
 import { GAMES, GAME_ICONS } from "@/lib/games";
 import { completedRoundCount } from "@/lib/scoring";
+import { normalizeCode } from "@/lib/sync";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,7 @@ export default function Home() {
   const [codeInput, setCodeInput] = useState("");
 
   function submitJoin() {
-    const code = codeInput.trim().toUpperCase();
+    const code = normalizeCode(codeInput);
     if (code) navigate(`/join/${code}`);
   }
 
@@ -113,14 +114,14 @@ export default function Home() {
           </DialogHeader>
           <Input
             value={codeInput}
-            onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+            onChange={(e) => setCodeInput(normalizeCode(e.target.value))}
             onKeyDown={(e) => e.key === "Enter" && submitJoin()}
             placeholder="ABC123"
             autoFocus
             autoCapitalize="characters"
             autoComplete="off"
-            maxLength={6}
-            className="h-14 text-center font-mono text-2xl tracking-[0.3em]"
+            maxLength={12}
+            className="h-14 text-center font-mono text-2xl tracking-[0.2em]"
           />
           <DialogFooter>
             <Button onClick={submitJoin} disabled={!codeInput.trim()} className="h-11">
