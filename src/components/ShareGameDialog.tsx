@@ -81,8 +81,8 @@ export function ShareGameDialog({ open, onOpenChange }: ShareGameDialogProps) {
         <DialogHeader>
           <DialogTitle>Share this game</DialogTitle>
           <DialogDescription>
-            Others scan the code (or open the link) to watch the score live. No app
-            install needed.
+            You're the scorekeeper. Others scan the code (or open the link) to watch the
+            scoreboard live — no app install needed.
           </DialogDescription>
         </DialogHeader>
 

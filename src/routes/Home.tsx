@@ -1,10 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogIn, Plus, Play as PlayIcon, Trophy } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronRight,
+  Clock,
+  LogIn,
+  Plus,
+  Play as PlayIcon,
+  Trophy,
+} from "lucide-react";
 import { useGame } from "@/lib/store";
 import { GAMES, GAME_ICONS } from "@/lib/games";
 import { completedRoundCount } from "@/lib/scoring";
 import { normalizeCode } from "@/lib/sync";
+import { listOccasions, type Occasion } from "@/lib/persistence";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,6 +32,11 @@ export default function Home() {
   const { game } = useGame();
   const [joinOpen, setJoinOpen] = useState(false);
   const [codeInput, setCodeInput] = useState("");
+  const [occasions, setOccasions] = useState<Occasion[]>([]);
+
+  useEffect(() => {
+    listOccasions().then(setOccasions);
+  }, []);
 
   function submitJoin() {
     const code = normalizeCode(codeInput);
@@ -78,6 +92,30 @@ export default function Home() {
         </Card>
       )}
 
+      {occasions.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <p className="text-muted-foreground px-1 text-xs font-medium uppercase tracking-wide">
+            Occasions
+          </p>
+          <div className="flex flex-col gap-2">
+            {occasions.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => navigate(`/groups/${o.id}`)}
+                className="flex items-center gap-3 rounded-xl border p-3 text-left transition active:scale-[0.99]"
+              >
+                <div className="bg-secondary text-secondary-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
+                  <CalendarDays className="size-5" />
+                </div>
+                <span className="min-w-0 flex-1 truncate font-medium">{o.name}</span>
+                <ChevronRight className="text-muted-foreground size-5 shrink-0" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="mt-auto flex flex-col gap-3">
         <Button
           size="lg"
@@ -87,15 +125,26 @@ export default function Home() {
           <Plus className="size-5" />
           New Game
         </Button>
-        <Button
-          variant="outline"
-          size="lg"
-          className="h-12"
-          onClick={() => setJoinOpen(true)}
-        >
-          <LogIn className="size-4" />
-          Join a game
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            size="lg"
+            className="h-12 flex-1"
+            onClick={() => setJoinOpen(true)}
+          >
+            <LogIn className="size-4" />
+            Join
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            className="h-12 flex-1"
+            onClick={() => navigate("/history")}
+          >
+            <Clock className="size-4" />
+            Past games
+          </Button>
+        </div>
         {game && (
           <p className="text-muted-foreground text-center text-xs">
             Starting a new game keeps this one until you finish setup.

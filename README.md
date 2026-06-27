@@ -9,6 +9,26 @@ Built generic so new games are added by dropping in a single file — ships toda
 - ⚡ Installable PWA, works offline after first load
 - 🔁 "Play again — same players" to restart instantly
 - 📡 **Live score sharing** — others scan a QR / enter a code to watch the score update in real time
+- 💾 **Saved history & occasions** — games persist to Supabase (per device) and group into named occasions
+
+## Persistence & occasions (Supabase)
+
+Games auto-save to Supabase so they survive cleared storage and build a history, and they
+group into named **occasions** (e.g. "Camping 2026") with a "most wins" tally. There's **no
+login**: each device silently gets an **anonymous** Supabase identity, and row-level security
+keeps its data private. `localStorage` stays the offline-first copy of the active game; Supabase
+writes are best-effort (offline never blocks play). One device is the **scorekeeper** that owns
+and saves the games; others join the live share for a read-only scoreboard. (Sharing one occasion
+across devices would need email login — a future option.)
+
+**Setup (once, in the Supabase dashboard):**
+1. **Authentication → Providers → enable "Allow anonymous sign-ins."**
+2. **SQL Editor → run** [`supabase/schema.sql`](supabase/schema.sql) (creates `groups` + `games`
+   with row-level security).
+
+Client config is in [`src/lib/supabaseClient.ts`](src/lib/supabaseClient.ts) (publishable key
+only). Persistence/auth live in [`src/lib/persistence.ts`](src/lib/persistence.ts) and
+[`src/lib/auth.ts`](src/lib/auth.ts); auto-save in [`src/components/GameSync.tsx`](src/components/GameSync.tsx).
 
 ## Live sharing (Supabase Realtime)
 

@@ -48,6 +48,8 @@ export interface StartGameInput {
   gameType: string;
   config: Record<string, number>;
   playerNames: string[];
+  /** Occasion (group) this game belongs to, if any. */
+  groupId?: string | null;
 }
 
 interface GameStore {
@@ -56,6 +58,8 @@ interface GameStore {
   lastGameType: string | null;
   favorites: string[];
   startGame: (input: StartGameInput) => Game;
+  /** Make an existing game (e.g. loaded from history) the active local game. */
+  loadGame: (game: Game) => void;
   setScore: (roundIndex: number, playerId: string, value: number | null) => void;
   addRound: () => void;
   removeLastRound: () => void;
@@ -106,6 +110,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       rounds,
       createdAt: Date.now(),
       completedAt: null,
+      groupId: input.groupId ?? null,
     };
 
     setGame(newGame);
@@ -116,6 +121,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     save(LAST_GAME_KEY, input.gameType);
     return newGame;
   }, []);
+
+  const loadGame = useCallback((g: Game) => setGame(g), []);
 
   const setScore = useCallback(
     (roundIndex: number, playerId: string, value: number | null) => {
@@ -180,6 +187,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       lastGameType,
       favorites,
       startGame,
+      loadGame,
       setScore,
       addRound,
       removeLastRound,
@@ -195,6 +203,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       lastGameType,
       favorites,
       startGame,
+      loadGame,
       setScore,
       addRound,
       removeLastRound,

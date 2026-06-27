@@ -60,7 +60,7 @@ export const farkle: GameDefinition = {
     {
       title: "Three of a kind",
       rules: [
-        { combo: "Three 1s", points: "1,000" },
+        { combo: "Three 1s", points: "300" },
         { combo: "Three 2s", points: "200" },
         { combo: "Three 3s", points: "300" },
         { combo: "Three 4s", points: "400" },

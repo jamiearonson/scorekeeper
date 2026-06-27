@@ -1,10 +1,16 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronUp, GripVertical, Plus, Star, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft, CalendarDays, ChevronUp, GripVertical, Plus, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { useGame } from "@/lib/store";
 import { GAME_LIST, GAMES, GAME_ICONS } from "@/lib/games";
 import type { SetupField } from "@/lib/types";
+import {
+  createOccasion,
+  listGamesInOccasion,
+  listOccasions,
+  type Occasion,
+} from "@/lib/persistence";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +19,8 @@ import type React from "react";
 
 export default function NewGame() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const presetGroupId = (location.state as { groupId?: string } | null)?.groupId ?? null;
   const { startGame, lastPlayers, lastGameType, favorites, addFavorite, removeFavorite } =
     useGame();
 
@@ -29,6 +37,38 @@ export default function NewGame() {
   const [players, setPlayers] = useState<string[]>(() =>
     lastPlayers.length >= 2 ? [...lastPlayers] : ["", ""],
   );
+
+  // Occasion (group) selection: an existing id, "new" (with a typed name), or null (none).
+  const [occasions, setOccasions] = useState<Occasion[]>([]);
+  const [groupChoice, setGroupChoice] = useState<string | "new" | null>(presetGroupId);
+  const [newOccasionName, setNewOccasionName] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    listOccasions().then((list) => {
+      if (!active) return;
+      setOccasions(list);
+      // When launched from an occasion, prefill players from its latest game.
+      if (presetGroupId) prefillFromOccasion(presetGroupId);
+    });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function prefillFromOccasion(id: string) {
+    const games = await listGamesInOccasion(id);
+    const latest = games[0];
+    if (latest && latest.players.length) {
+      setPlayers(latest.players.map((p) => p.name));
+    }
+  }
+
+  function chooseOccasion(choice: string | "new" | null) {
+    setGroupChoice(choice);
+    if (typeof choice === "string" && choice !== "new") prefillFromOccasion(choice);
+  }
 
   function pickGame(id: string) {
     setGameType(id);
@@ -91,13 +131,29 @@ export default function NewGame() {
   // Always startable — blank rows fall back to "Player N" so a quick game needs no typing.
   const canStart = players.length >= 1;
 
-  function handleStart() {
-    if (!canStart) {
-      toast.error("Add at least one player");
+  const [starting, setStarting] = useState(false);
+
+  async function handleStart() {
+    if (!canStart || starting) {
+      if (!canStart) toast.error("Add at least one player");
       return;
     }
+    setStarting(true);
     const names = players.map((n, i) => n.trim() || `Player ${i + 1}`);
-    startGame({ gameType, config, playerNames: names });
+
+    let groupId: string | null = null;
+    if (groupChoice === "new") {
+      const name = newOccasionName.trim();
+      if (name) {
+        const occ = await createOccasion(name);
+        groupId = occ?.id ?? null;
+        if (!occ) toast.error("Couldn't save the occasion — starting without it");
+      }
+    } else if (typeof groupChoice === "string") {
+      groupId = groupChoice;
+    }
+
+    startGame({ gameType, config, playerNames: names, groupId });
     navigate("/play");
   }
 
@@ -170,9 +226,48 @@ export default function NewGame() {
           )}
         </section>
 
-        {/* 3. Players */}
+        {/* 3. Occasion (optional) */}
         <section className="flex flex-col gap-3">
-          <SectionTitle step={3} title="Players" />
+          <SectionTitle step={3} title="Occasion" />
+          <p className="text-muted-foreground -mt-1 text-xs">
+            Group this game with others (e.g. a camping trip). Optional — saved on this
+            device.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Chip active={groupChoice === null} onClick={() => chooseOccasion(null)}>
+              None
+            </Chip>
+            {occasions.map((o) => (
+              <Chip
+                key={o.id}
+                active={groupChoice === o.id}
+                onClick={() => chooseOccasion(o.id)}
+              >
+                <CalendarDays className="size-3.5" />
+                {o.name}
+              </Chip>
+            ))}
+            <Chip active={groupChoice === "new"} onClick={() => chooseOccasion("new")}>
+              <Plus className="size-3.5" />
+              New
+            </Chip>
+          </div>
+          {groupChoice === "new" && (
+            <Input
+              value={newOccasionName}
+              onChange={(e) => setNewOccasionName(e.target.value)}
+              placeholder="Camping 2026"
+              autoFocus
+              maxLength={40}
+              className="h-11"
+              autoComplete="off"
+            />
+          )}
+        </section>
+
+        {/* 4. Players */}
+        <section className="flex flex-col gap-3">
+          <SectionTitle step={4} title="Players" />
           <div className="flex flex-col gap-2">
             {players.map((name, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -269,9 +364,9 @@ export default function NewGame() {
           size="lg"
           className="h-14 w-full text-base"
           onClick={handleStart}
-          disabled={!canStart}
+          disabled={!canStart || starting}
         >
-          Start Game
+          {starting ? "Starting…" : "Start Game"}
         </Button>
       </footer>
     </div>

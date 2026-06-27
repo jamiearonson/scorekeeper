@@ -35,6 +35,8 @@ export interface Game {
   rounds: Round[];
   createdAt: number;
   completedAt: number | null;
+  /** Occasion this game belongs to (Supabase group id), or null if standalone. */
+  groupId?: string | null;
 }
 
 export interface Standing {

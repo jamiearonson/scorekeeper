@@ -6,8 +6,9 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = "https://zzkzvjouljwiytkptoaf.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_kTQ6xt7boxYs0jz5wGsjKw_sY1IGVgK";
 
-// We only use Realtime (Broadcast + Presence) for now — no auth/session persistence.
+// Persist the (anonymous) session so a device keeps the same identity across reloads —
+// that's what scopes saved games and occasions to this device via row-level security.
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: { persistSession: false },
+  auth: { persistSession: true, autoRefreshToken: true },
   realtime: { params: { eventsPerSecond: 20 } },
 });
