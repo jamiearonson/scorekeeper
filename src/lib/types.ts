@@ -81,6 +81,12 @@ export interface GameDefinition {
    */
   scoreSteps?: number[];
   /**
+   * Discrete score choices for a round (e.g. Blank Slate's 0/1/3). When set, the entry
+   * sheet shows a segmented picker of these values per player instead of a numeric
+   * stepper. Takes precedence over `scoreSteps`.
+   */
+  scoreOptions?: number[];
+  /**
    * Default per-player value when entering a fresh round. Set to 0 for games where a
    * blank turn means zero (e.g. a Farkle bust) so the round counts as complete and you
    * only adjust the players who actually scored. Omit (undefined) to require explicit

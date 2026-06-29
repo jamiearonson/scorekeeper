@@ -5,6 +5,7 @@ import { GAMES } from "@/lib/games";
 import { useGame } from "@/lib/store";
 import { NumberStepper } from "@/components/NumberStepper";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Drawer,
   DrawerContent,
@@ -27,6 +28,7 @@ export function ScoreEntrySheet({ game, roundIndex, onClose }: ScoreEntrySheetPr
   const { setScore } = useGame();
   const def = GAMES[game.gameType];
   const steps = def.scoreSteps ?? [1];
+  const options = def.scoreOptions; // discrete picks (e.g. Blank Slate 0/1/3)
   // Games like Farkle treat an untouched player as 0 (a bust), so the round closes out
   // by saving and you only bump the players who actually scored.
   const fallback = def.defaultScore ?? null;
@@ -80,7 +82,33 @@ export function ScoreEntrySheet({ game, roundIndex, onClose }: ScoreEntrySheetPr
 
           <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto px-4 pb-2">
             {game.players.map((p) =>
-              steps.length > 1 ? (
+              options ? (
+                // Segmented picker of fixed score choices (e.g. Blank Slate 0/1/3).
+                <div key={p.id} className="flex flex-col gap-2 rounded-xl border p-3">
+                  <span className="truncate font-medium">{p.name}</span>
+                  <div className="flex gap-2">
+                    {options.map((opt) => {
+                      const selected = (draft[p.id] ?? fallback) === opt;
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setDraft((d) => ({ ...d, [p.id]: opt }))}
+                          aria-pressed={selected}
+                          className={cn(
+                            "h-12 flex-1 rounded-lg border text-lg font-bold tabular-nums transition active:scale-95",
+                            selected
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-card",
+                          )}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : steps.length > 1 ? (
                 // Wide stacked layout: name above a full-width coarse/fine stepper.
                 <div
                   key={p.id}
