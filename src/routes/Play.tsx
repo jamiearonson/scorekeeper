@@ -6,6 +6,7 @@ import {
   Flag,
   LogOut,
   Pencil,
+  PenLine,
   Plus,
   Radio,
   RotateCcw,
@@ -23,6 +24,7 @@ import { Scorecard } from "@/components/Scorecard";
 import { ScoreEntrySheet } from "@/components/ScoreEntrySheet";
 import { ShareGameDialog } from "@/components/ShareGameDialog";
 import { ScoringReferenceDialog } from "@/components/ScoringReferenceDialog";
+import { ScratchPad } from "@/components/ScratchPad";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -42,6 +44,7 @@ export default function Play() {
   const [confirmFinish, setConfirmFinish] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
+  const [scratchOpen, setScratchOpen] = useState(false);
 
   const isGuest = sync.role === "guest";
 
@@ -117,6 +120,16 @@ export default function Play() {
               : `${done} ${(done === 1 ? def.roundLabel : def.roundLabelPlural).toLowerCase()} played`}
           </p>
         </div>
+        {def.id === "blank-slate" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setScratchOpen(true)}
+            aria-label="Scratch pad"
+          >
+            <PenLine className="size-5" />
+          </Button>
+        )}
         {def.scoringReference && (
           <Button
             variant="ghost"
@@ -228,6 +241,8 @@ export default function Play() {
         onOpenChange={setScoringOpen}
       />
 
+      {scratchOpen && <ScratchPad onClose={() => setScratchOpen(false)} />}
+
       <Dialog open={confirmFinish} onOpenChange={setConfirmFinish}>
         <DialogContent className="max-w-[20rem]">
           <DialogHeader>
@@ -255,6 +270,7 @@ function GuestPlay() {
   const sync = useSync();
   const game = sync.remoteGame;
   const [scoringOpen, setScoringOpen] = useState(false);
+  const [scratchOpen, setScratchOpen] = useState(false);
 
   function leave() {
     sync.stop();
@@ -286,6 +302,16 @@ function GuestPlay() {
               : "Connecting to the scorekeeper"}
           </p>
         </div>
+        {def?.id === "blank-slate" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setScratchOpen(true)}
+            aria-label="Scratch pad"
+          >
+            <PenLine className="size-5" />
+          </Button>
+        )}
         {def?.scoringReference && (
           <Button
             variant="ghost"
@@ -344,6 +370,8 @@ function GuestPlay() {
           onOpenChange={setScoringOpen}
         />
       )}
+
+      {scratchOpen && <ScratchPad onClose={() => setScratchOpen(false)} />}
     </div>
   );
 }
