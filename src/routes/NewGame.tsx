@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, CalendarDays, ChevronUp, GripVertical, Plus, Star, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, GripVertical, Plus, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { useGame } from "@/lib/store";
 import { GAME_LIST, GAMES, GAME_ICONS } from "@/lib/games";
@@ -11,11 +11,23 @@ import {
   listOccasions,
   type Occasion,
 } from "@/lib/persistence";
+import { SortableList, SortableRow } from "@/components/SortableList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type React from "react";
+
+// Draft player rows carry a stable id so they can be drag-reordered.
+interface DraftPlayer {
+  id: string;
+  name: string;
+}
+function draftId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `d-${Math.random().toString(36).slice(2)}`;
+}
 
 export default function NewGame() {
   const navigate = useNavigate();
@@ -34,8 +46,11 @@ export default function NewGame() {
     Object.fromEntries(def.setupFields.map((f) => [f.key, f.default])),
   );
 
-  const [players, setPlayers] = useState<string[]>(() =>
-    lastPlayers.length >= 2 ? [...lastPlayers] : ["", ""],
+  const [players, setPlayers] = useState<DraftPlayer[]>(() =>
+    (lastPlayers.length >= 2 ? lastPlayers : ["", ""]).map((name) => ({
+      id: draftId(),
+      name,
+    })),
   );
 
   // Occasion (group) selection: an existing id, "new" (with a typed name), or null (none).
@@ -61,7 +76,7 @@ export default function NewGame() {
     const games = await listGamesInOccasion(id);
     const latest = games[0];
     if (latest && latest.players.length) {
-      setPlayers(latest.players.map((p) => p.name));
+      setPlayers(latest.players.map((p) => ({ id: draftId(), name: p.name })));
     }
   }
 
@@ -80,36 +95,35 @@ export default function NewGame() {
     setConfig((c) => ({ ...c, [key]: value }));
   }
 
-  function updatePlayer(i: number, name: string) {
-    setPlayers((p) => p.map((n, idx) => (idx === i ? name : n)));
+  function updatePlayer(id: string, name: string) {
+    setPlayers((p) => p.map((row) => (row.id === id ? { ...row, name } : row)));
   }
   function addPlayer() {
-    setPlayers((p) => [...p, ""]);
+    setPlayers((p) => [...p, { id: draftId(), name: "" }]);
   }
-  function removePlayer(i: number) {
-    setPlayers((p) => (p.length <= 1 ? p : p.filter((_, idx) => idx !== i)));
+  function removePlayer(id: string) {
+    setPlayers((p) => (p.length <= 1 ? p : p.filter((row) => row.id !== id)));
   }
-  function moveUp(i: number) {
-    if (i === 0) return;
-    setPlayers((p) => {
-      const next = [...p];
-      [next[i - 1], next[i]] = [next[i], next[i - 1]];
-      return next;
-    });
+  function reorderDraft(ids: string[]) {
+    setPlayers((p) =>
+      ids
+        .map((id) => p.find((row) => row.id === id))
+        .filter((row): row is DraftPlayer => Boolean(row)),
+    );
   }
 
   function hasPlayer(name: string) {
     const n = name.trim().toLowerCase();
-    return players.some((p) => p.trim().toLowerCase() === n);
+    return players.some((row) => row.name.trim().toLowerCase() === n);
   }
 
   // Tap a saved favorite to drop it into the lineup: fill the first blank row, else append.
   function addFromFavorite(name: string) {
     if (hasPlayer(name)) return;
     setPlayers((p) => {
-      const blank = p.findIndex((n) => n.trim() === "");
-      if (blank === -1) return [...p, name];
-      return p.map((n, idx) => (idx === blank ? name : n));
+      const blank = p.findIndex((row) => row.name.trim() === "");
+      if (blank === -1) return [...p, { id: draftId(), name }];
+      return p.map((row, idx) => (idx === blank ? { ...row, name } : row));
     });
   }
 
@@ -139,7 +153,7 @@ export default function NewGame() {
       return;
     }
     setStarting(true);
-    const names = players.map((n, i) => n.trim() || `Player ${i + 1}`);
+    const names = players.map((p, i) => p.name.trim() || `Player ${i + 1}`);
 
     let groupId: string | null = null;
     if (groupChoice === "new") {
@@ -268,62 +282,67 @@ export default function NewGame() {
         {/* 4. Players */}
         <section className="flex flex-col gap-3">
           <SectionTitle step={4} title="Players" />
-          <div className="flex flex-col gap-2">
-            {players.map((name, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => moveUp(i)}
-                  disabled={i === 0}
-                  className="text-muted-foreground disabled:opacity-30"
-                  aria-label="Move up"
-                >
-                  {i === 0 ? (
-                    <GripVertical className="size-5" />
-                  ) : (
-                    <ChevronUp className="size-5" />
+          <SortableList ids={players.map((p) => p.id)} onReorder={reorderDraft}>
+            <div className="flex flex-col gap-2">
+              {players.map((row, i) => (
+                <SortableRow key={row.id} id={row.id}>
+                  {({ handle }) => (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        {...handle}
+                        className="text-muted-foreground -m-1 cursor-grab touch-none p-1 active:cursor-grabbing"
+                        aria-label="Drag to reorder"
+                      >
+                        <GripVertical className="size-5" />
+                      </button>
+                      <Input
+                        value={row.name}
+                        placeholder={`Player ${i + 1}`}
+                        onChange={(e) => updatePlayer(row.id, e.target.value)}
+                        className="h-11 flex-1"
+                        autoComplete="off"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => toggleFavorite(row.name)}
+                        disabled={row.name.trim() === ""}
+                        aria-label={
+                          isFavorited(row.name)
+                            ? "Remove from favorites"
+                            : "Save as favorite"
+                        }
+                        aria-pressed={isFavorited(row.name)}
+                      >
+                        <Star
+                          className={cn(
+                            "size-5",
+                            isFavorited(row.name)
+                              ? "fill-yellow-400 text-yellow-400"
+                              : "text-muted-foreground",
+                          )}
+                        />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground shrink-0"
+                        onClick={() => removePlayer(row.id)}
+                        disabled={players.length <= 1}
+                        aria-label="Remove player"
+                      >
+                        <X className="size-5" />
+                      </Button>
+                    </div>
                   )}
-                </button>
-                <Input
-                  value={name}
-                  placeholder={`Player ${i + 1}`}
-                  onChange={(e) => updatePlayer(i, e.target.value)}
-                  className="h-11 flex-1"
-                  autoComplete="off"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() => toggleFavorite(name)}
-                  disabled={name.trim() === ""}
-                  aria-label={isFavorited(name) ? "Remove from favorites" : "Save as favorite"}
-                  aria-pressed={isFavorited(name)}
-                >
-                  <Star
-                    className={cn(
-                      "size-5",
-                      isFavorited(name)
-                        ? "fill-yellow-400 text-yellow-400"
-                        : "text-muted-foreground",
-                    )}
-                  />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground shrink-0"
-                  onClick={() => removePlayer(i)}
-                  disabled={players.length <= 1}
-                  aria-label="Remove player"
-                >
-                  <X className="size-5" />
-                </Button>
-              </div>
-            ))}
-          </div>
+                </SortableRow>
+              ))}
+            </div>
+          </SortableList>
           <Button type="button" variant="outline" onClick={addPlayer} className="h-11">
             <Plus className="size-4" />
             Add player
