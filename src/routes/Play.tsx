@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
+  ArrowUpDown,
   BookOpen,
   Flag,
   LogOut,
@@ -25,6 +26,7 @@ import { ScoreEntrySheet } from "@/components/ScoreEntrySheet";
 import { ShareGameDialog } from "@/components/ShareGameDialog";
 import { ScoringReferenceDialog } from "@/components/ScoringReferenceDialog";
 import { ScratchPad } from "@/components/ScratchPad";
+import { ReorderPlayersSheet } from "@/components/ReorderPlayersSheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -45,6 +47,7 @@ export default function Play() {
   const [shareOpen, setShareOpen] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
   const [scratchOpen, setScratchOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   const isGuest = sync.role === "guest";
 
@@ -187,6 +190,20 @@ export default function Play() {
 
         <Leaderboard game={game} />
 
+        {!complete && game.players.length >= 2 && (
+          <div className="-mb-3 flex justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground h-8 px-2"
+              onClick={() => setReorderOpen(true)}
+            >
+              <ArrowUpDown className="size-4" />
+              Reorder
+            </Button>
+          </div>
+        )}
+
         <Scorecard game={game} onEditRound={(i) => setEditRound(i)} />
 
         {!complete && (
@@ -231,6 +248,12 @@ export default function Play() {
         game={game}
         roundIndex={editRound}
         onClose={() => setEditRound(null)}
+      />
+
+      <ReorderPlayersSheet
+        game={game}
+        open={reorderOpen}
+        onClose={() => setReorderOpen(false)}
       />
 
       <ShareGameDialog open={shareOpen} onOpenChange={setShareOpen} />

@@ -61,6 +61,8 @@ interface GameStore {
   /** Make an existing game (e.g. loaded from history) the active local game. */
   loadGame: (game: Game) => void;
   setScore: (roundIndex: number, playerId: string, value: number | null) => void;
+  /** Reorder the active game's players to match the given id order (seating order). */
+  reorderPlayers: (orderedIds: string[]) => void;
   addRound: () => void;
   removeLastRound: () => void;
   completeGame: () => void;
@@ -139,6 +141,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const reorderPlayers = useCallback((orderedIds: string[]) => {
+    setGame((g) => {
+      if (!g) return g;
+      const byId = new Map(g.players.map((p) => [p.id, p]));
+      const next = orderedIds
+        .map((id) => byId.get(id))
+        .filter((p): p is Player => Boolean(p));
+      // Guard against a mismatched id set — keep the original order if so.
+      if (next.length !== g.players.length) return g;
+      return { ...g, players: next };
+    });
+  }, []);
+
   const addRound = useCallback(() => {
     setGame((g) => (g ? { ...g, rounds: [...g.rounds, emptyRound(g.players)] } : g));
   }, []);
@@ -189,6 +204,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       loadGame,
       setScore,
+      reorderPlayers,
       addRound,
       removeLastRound,
       completeGame,
@@ -205,6 +221,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       loadGame,
       setScore,
+      reorderPlayers,
       addRound,
       removeLastRound,
       completeGame,
