@@ -15,6 +15,12 @@ export interface SetupField {
   max?: number;
   /** Short helper text shown under the field. */
   hint?: string;
+  /**
+   * Only render this field when the predicate passes, letting one field switch
+   * which others are relevant (e.g. Midnight's fixed-rounds vs race-to-target).
+   * Hidden fields keep their default value in the config.
+   */
+  showIf?: (config: Record<string, number>) => boolean;
 }
 
 export interface Player {

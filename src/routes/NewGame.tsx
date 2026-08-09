@@ -225,14 +225,16 @@ export default function NewGame() {
         {/* 2. Configure */}
         <section className="flex flex-col gap-4">
           <SectionTitle step={2} title="Set it up" />
-          {def.setupFields.map((field) => (
-            <SetupFieldRow
-              key={field.key}
-              field={field}
-              value={config[field.key]}
-              onChange={(v) => setField(field.key, v)}
-            />
-          ))}
+          {def.setupFields
+            .filter((field) => !field.showIf || field.showIf(config))
+            .map((field) => (
+              <SetupFieldRow
+                key={field.key}
+                field={field}
+                value={config[field.key]}
+                onChange={(v) => setField(field.key, v)}
+              />
+            ))}
           {def.describeGoal && (
             <p className="text-muted-foreground rounded-lg bg-secondary/60 px-3 py-2 text-sm">
               🏁 {def.describeGoal(config)}

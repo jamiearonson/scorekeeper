@@ -2,7 +2,8 @@
 
 A fast, mobile-first **PWA for keeping score** in turn/round-based group games.
 Built generic so new games are added by dropping in a single file — ships today with
-**Golf** (lowest total wins) and **Farkle** (highest total wins, race to a target).
+**Golf** (lowest total wins), **Farkle** (highest total wins, race to a target),
+**Blank Slate**, and **Midnight (1-4-24)** (dice; fixed rounds or race to a target).
 
 - 📱 Mobile-only layout, big tap targets, one-sheet score entry for the whole group
 - 💾 No backend — the active game is saved to `localStorage` and survives refreshes
@@ -90,9 +91,11 @@ src/lib/
   scoring.ts        # generic totals / standings / winners (uses scoreDirection)
   store.tsx         # GameProvider + useGame() — state + localStorage persistence
   games/
-    index.ts        # the registry: { golf, farkle } + per-game icons
+    index.ts        # the registry: { golf, farkle, ... } + per-game icons
     golf.ts         # GameDefinition (low wins, fixed holes)
     farkle.ts       # GameDefinition (high wins, open-ended, target score)
+    blank-slate.ts  # GameDefinition (high wins, fixed score choices)
+    midnight.ts     # GameDefinition (high wins, fixed rounds *or* target score)
 ```
 
 ### Adding a new game
@@ -100,7 +103,9 @@ src/lib/
 1. Create `src/lib/games/<game>.ts` exporting a `GameDefinition`:
    - `scoreDirection: "low" | "high"` — how a winner is decided (scoring is generic).
    - `roundLabel` / `roundLabelPlural` — e.g. `"Hole"` or `"Round"`.
-   - `setupFields` — config collected on the setup screen (renders automatically).
+   - `setupFields` — config collected on the setup screen (renders automatically). A
+     field can carry `showIf(config)` to appear only when another field selects it
+     (e.g. Midnight shows "rounds" or "target" depending on the match format).
    - `totalRounds(config)` — a number for fixed-length games, or `null` for open-ended.
    - `validateScore`, `isComplete`, optional `describeGoal`.
 2. Register it in `src/lib/games/index.ts` (`GAMES` + `GAME_ICONS`).

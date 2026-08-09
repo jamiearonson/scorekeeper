@@ -183,7 +183,7 @@ export default function Play() {
           >
             <Trophy className="size-4" />
             {total
-              ? "All holes entered — tap to finish"
+              ? `All ${def.roundLabelPlural.toLowerCase()} entered — tap to finish`
               : "Target reached — tap to finish"}
           </button>
         )}
